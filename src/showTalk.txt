@@ -1,0 +1,27 @@
+StringBuffer sb = new StringBuffer();
+		graph.setColor(Color.WHITE);
+		int wait = 0;
+		int index = 0;
+		while(index < talk.length) {
+			switch (talk[index++]) {
+			case '$' :
+				index+=2;
+				break;
+			case '~' :
+				wait = Convert.getInt2(talk, index);
+				index+=2;
+				break;
+			case '\'' :
+				//graph.setColor(Color.RED);
+				break;
+			case '-' :
+				//graph.setColor(Color.CYAN);
+				break;
+			case '\"' :
+				//graph.setColor(Color.YELLOW);
+				break;
+			default :
+				sb.append((byte)talk[index-1]);
+			}
+		}
+		//graph.setColor(Color.BLUE);

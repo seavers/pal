@@ -1,0 +1,409 @@
+package pal.ui;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Toolkit;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.IndexColorModel;
+import java.awt.image.MemoryImageSource;
+import java.awt.image.Raster;
+import java.awt.image.SampleModel;
+import java.awt.image.SinglePixelPackedSampleModel;
+import java.awt.image.WritableRaster;
+import java.util.Arrays;
+
+import javax.swing.JPanel;
+
+import pal.game.EventObject;
+import pal.game.Game;
+import pal.game.Palette;
+import pal.resource.Resource;
+import pal.util.ArraysUtil;
+import pal.util.Convert;
+import pal.util.ImageUtil;
+
+public class GamePanel extends JPanel implements KeyListener{
+	
+	private int select = 0;
+	private int roleX = 160, roleY = 100;			//显示的角度, 人物的屏幕坐标.
+	private Image background = Toolkit.getDefaultToolkit().createImage("data\\31.jpg");	
+	private static byte[][] words = ArraysUtil.getArrays(Resource.getWord(), 10);
+	private Game game;
+	public GamePanel(Game game) {
+		super(true);		//内置双缓冲支持.
+		this.game = game;
+	}
+	
+	/**
+	 * 绘制整个游戏画面.
+	 * 
+	 * 	1. 这里首先调用了Transform, 将游戏分辨率调整为320*200的.
+	 *
+	 */
+	@Override
+	protected void paintComponent(Graphics g) {
+		Graphics2D graph = (Graphics2D) g;
+		graph.setBackground(Color.BLACK);
+		Dimension size = Toolkit.getDefaultToolkit().getScreenSize();
+		graph.setTransform(AffineTransform.getScaleInstance(
+				size.width / 320.0, size.height / 200.0));		
+		
+		switch (game.getState()) {
+		case Game.STATE_INIT :
+			break;
+		case Game.STATE_LOAD :
+			drawSelect(graph);
+			break;
+		case Game.STATE_SCENE :			
+			drawMap(graph);
+			drawGoods(graph);
+			drawRole(graph);
+			break;
+		case Game.STATE_FIGHT:
+			drawFight(graph);
+			break;
+		case Game.STATE_MENU :
+			drawMap(graph);
+			drawGoods(graph);
+			drawRole(graph);
+			drawMenu(graph);
+			break;
+		case Game.STATE_STOP :
+			break;
+		case Game.STATE_FAIL :
+			break;
+		case Game.STATE_TALK :
+			drawMap(graph);
+			drawGoods(graph);
+			drawRole(graph);
+			drawTalk(graph);
+			break;
+		}
+	}	
+
+	/**
+	 * 绘制地图. 地图应以主角为中心. 所以视口左上角坐标, 应该为
+	 * 
+	 *  主角坐标 - 150,100,		(此数值应于role中的坐标相对应.
+	 * 
+	 * @param graph
+	 */
+	private void drawMap(Graphics2D graph) {
+		int x = game.getX();
+		int y = game.getY();
+		boolean half = game.isHalf();
+		int mapX = x * 32 - roleX + (half ? 16 : 0);// + 32; 
+		int mapY = y * 16 - roleY + (half ? 8 : 0) + 3;
+			
+		int[][] data = game.getMap().getImage(mapX,mapY, 320, 200);
+		if (data == null) {
+			//System.out.println("error : map no data");
+			return ;
+		}
+		MemoryImageSource mis = new MemoryImageSource(320, 200, ArraysUtil.getArrays(data), 0, 320);
+		Image image = Toolkit.getDefaultToolkit().createImage(mis);
+		graph.drawImage(image, 0, 0, this);
+
+		//ImageUtil.draw(graph, data, x, y);
+	}
+
+	private void drawGoods(Graphics2D graph) {
+		int start = game.getScene().getEventBeginId();
+		int end = game.getScene().getEventEndId();
+		for (int i = start; i < end; i++) {
+			EventObject eo = game.getEventObject(i);
+			int[][] data = eo.getImage();
+			
+		}
+		
+	}
+	
+	/**
+	 * 角色坐标计算. 角色是一直处于地图正中心的, 不改变, 而角色宽高不一样, 应以左下角为标准.
+	 * 
+	 * 这里采用 地图中心 160,100 - 22/2,0
+	 * 
+	 * @param graph
+	 */
+	private void drawRole(Graphics2D graph) {			
+		int[][] data = game.getRole(0).getImage();
+		int width = data[0].length;
+		int height = data.length;
+		if (data == null) {
+			System.out.println("error : role no data");
+			return ;
+		}
+		MemoryImageSource mis = new MemoryImageSource(width, height, ArraysUtil.getArrays(data), 0, width);
+		Image image = Toolkit.getDefaultToolkit().createImage(mis);
+		graph.drawImage(image, roleX-width/2, roleY-height, this);
+		
+	}
+
+
+	private void drawTalk(Graphics2D graph) {
+		byte[] talk = game.getTalk().getWord();
+		//int pos = game.getTalk().getPos();
+		int start = talk[0]==(byte)'$' ? 3 : 0;
+		int end = talk[talk.length - 3]=='~' ? talk.length - 3 : talk.length;
+		byte[] show = Arrays.copyOfRange(talk, start, end);
+		graph.setColor(Color.WHITE);
+		graph.drawString(new String(show), 40, 20);
+	}
+	
+	private void drawFight(Graphics2D graph) {
+	}
+	
+
+	private void drawMenu(Graphics2D graph) {
+	}
+
+
+
+	private void drawSelect(Graphics2D graph) {		
+		graph.drawImage(background, 0, 0, this);
+		graph.setFont(new Font(Font.SANS_SERIF, Font.ROMAN_BASELINE, 16));
+		if (select == 0) {
+			graph.setColor(Color.YELLOW);
+		} else {
+			graph.setColor(Color.WHITE);
+		}
+		graph.drawString("新的故事", 130, 100);
+		if (select == 1) {
+			graph.setColor(Color.YELLOW);
+		} else {
+			graph.setColor(Color.WHITE);
+		}
+		graph.drawString("旧的回忆", 130, 115);
+	
+	}
+
+	
+
+	
+	
+	
+	/* * * * * * * * * * * * * * * * *
+	 *  下面是按键处理区.
+	 */  
+	
+	
+	public void keyPressed(KeyEvent e) {
+		//System.out.println("user key Pressed " + e.getKeyCode());
+	
+		switch (game.getState()) {
+		case Game.STATE_INIT :
+			break;
+		case Game.STATE_LOAD :
+			onLoadKey(e);			
+			break;
+		case Game.STATE_SCENE :
+			onRoleKey(e);
+			break;
+		case Game.STATE_FIGHT:
+			onFightKey(e);
+			break;
+		case Game.STATE_MENU :
+			onMenuKey(e);
+			break;
+		case Game.STATE_STOP :
+			break;
+		case Game.STATE_FAIL :
+			break;
+		case Game.STATE_TALK :
+			onTalkKey(e);
+			break;
+		}
+		//repaint();
+	}
+
+	private void onRoleKey(KeyEvent e) {
+		//System.out.println("role key Pressed " + e.getKeyCode());
+		int x = game.getX();
+		int y = game.getY();
+		boolean half = game.isHalf();
+		switch (e.getKeyCode()) {
+		case KeyEvent.VK_LEFT :
+			if (half) {
+				half = false;
+			} else {
+				x--;
+				y--;
+				half = true;
+			}												
+			break;
+		case KeyEvent.VK_RIGHT :
+			if (!half) {
+				half = true;
+			} else {
+				x++;
+				y++;
+				half = false;
+			}								
+			break;
+		case KeyEvent.VK_UP :	
+			if (!half) {
+				y--;
+				half = true;
+			} else {
+				x++;
+				half = false;
+			}		
+			break;
+		case KeyEvent.VK_DOWN :	
+			if (!half) {
+				x--;
+				half = true;
+			} else {
+				y++;
+				half = false;
+			}			
+			break;
+		case KeyEvent.VK_ESCAPE :
+			//菜单
+			break;
+		case KeyEvent.VK_SPACE :
+			//捡物品
+			break;
+		}
+		game.setPos(x, y, half);
+	}
+
+	private void onTalkKey(KeyEvent e) {
+		switch(e.getKeyCode()) {
+		case KeyEvent.VK_SPACE :
+			game.clearTalk();
+			break;
+		}
+	}
+
+	private void onFightKey(KeyEvent e) {}
+	
+	private void onMenuKey(KeyEvent e) {}
+
+	private void onLoadKey(KeyEvent e) {
+		switch (e.getKeyCode()) {
+		case KeyEvent.VK_ESCAPE:
+			System.exit(0);
+			break;
+		case KeyEvent.VK_UP:
+		case KeyEvent.VK_DOWN:
+			select = (select + 1) % 2;
+			break;
+		case KeyEvent.VK_ENTER:
+		case KeyEvent.VK_SPACE:
+			game.load(select);
+			break;
+		}
+	}
+
+	public void keyReleased(KeyEvent e) {}
+	public void keyTyped(KeyEvent e) {}
+	
+}
+
+
+
+
+
+
+
+
+/////////////////////////////////////////////
+/////////////////////////////////////////////
+
+	private int[][] image = new int[200][320];	
+	private void drawMapAndNpc(Graphics2D graph) {
+		int x = game.getX();
+		int y = game.getY();
+		boolean half = game.isHalf();
+		mapX = x * 32 - roleX + (half ? 16 : 0);// + 32; 
+		mapY = y * 16 - roleY + (half ? 8 : 0) + 3;			
+		image = game.getMap().getImage(mapX,mapY, 320, 200).clone();
+		
+		int start = game.getScene().getEventBeginId();
+		int end = game.getScene().getEventEndId();
+		for (int i = start+1; i < end; i++) {
+			EventObject eo = game.getEventObject(i);			
+			if (eo.getState() == 0 || eo.getRoleId() == 0) {
+				continue;
+			}
+			int[][] data = eo.getImage();
+			//System.out.println(i);
+			int ex = eo.getX() - mapX;
+			int ey = eo.getY() - mapY;
+			if (ex > 0 && ex < 320-data[0].length && ey > 0 && ey < 200-data.length) {
+				ImageUtil.draw(image, data, ex, ey);		
+			}				
+		}
+		ImageUtil.draw(graph, image, mapX, mapY);
+	}
+
+	/**
+	 * 绘制地图. 地图应以主角为中心. 所以视口左上角坐标, 应该为
+	 * 
+	 *  主角坐标 - 150,100,		(此数值应于role中的坐标相对应.
+	 * 
+	 * @param graph
+	 */
+	private void drawMap(Graphics2D graph) {
+		int x = game.getX();
+		int y = game.getY();
+		boolean half = game.isHalf();
+		mapX = x * 32 - roleX + (half ? 16 : 0);// + 32; 
+		mapY = y * 16 - roleY + (half ? 8 : 0) + 3;
+			
+		int[][] data = game.getMap().getImage(mapX,mapY, 320, 200);
+		ImageUtil.draw(graph, data, 0, 0, this);
+	}
+
+	private void drawGoods(Graphics2D graph) {
+		int start = game.getScene().getEventBeginId();
+		int end = game.getScene().getEventEndId();
+		for (int i = start; i < end; i++) {
+			if (i == 0) {
+				continue;
+			}
+			
+			EventObject eo = game.getEventObject(i);
+			int[][] data = eo.getImage();
+			if (data == null) {
+				continue;
+			}
+			//System.out.println(i);
+			int x = eo.getX() - mapX;
+			int y = eo.getY() - mapY;
+			if (x > 0 && x < 320-data[0].length && x > 0 && x < 200-data.length) {
+				ImageUtil.draw(graph, data, x, y, this);		
+			}				
+		}
+		//int[][][] data = Resource.getMgo(55);
+		//ImageUtil.draw(graph, data[0], 0, 0);
+	}
+	
+	/**
+	 * 角色坐标计算. 角色是一直处于地图正中心的, 不改变, 而角色宽高不一样, 应以左下角为标准.
+	 * 
+	 * 这里采用 地图中心 160,100 - 22/2,0
+	 * 
+	 * @param graph
+	 */
+	private void drawRole(Graphics2D graph) {			
+		int[][] data = game.getRole(0).getImage();
+		if (data == null) {
+			System.out.println("error : role no data");
+			return ;
+		}
+		int width = data[0].length;
+		int height = data.length;		
+		ImageUtil.draw(graph, data, roleX-width/2, roleY-height, this);
+		
+	}

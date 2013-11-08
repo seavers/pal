@@ -1,0 +1,18 @@
+
+	/**
+	 * 外部接口, 调用此Gop中的某个Tile, index以脚本中为准.
+	 * 这里应该检查index是否越界, 如果越界, 应该返回null, 而不是抛出运行异常.
+	 * 如果为null, 绘图时, 则会显示为背景色, 即全黑.
+	 * 如果抛出运行异常, 程序将会终止.
+	 * 然而取空, 并非不可处理的异常, 所以数组越界, 应返回null, 而不是异常. 
+	 * @param index
+	 * @return
+	 */
+
+	public int[][] getTile(int index) {
+		if (index < 0 || index > data.length) {
+			System.out.println("error : gop.getTile() index = " + index);
+			return null;
+		}
+		return data[index];
+	}	 
